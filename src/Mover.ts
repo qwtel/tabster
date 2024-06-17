@@ -812,12 +812,7 @@ export class MoverAPI implements Types.MoverAPI {
             checkRtl: true,
         });
 
-        if (
-            !ctx ||
-            !ctx.mover ||
-            ctx.excludedFromMover ||
-            (relatedEvent && ctx.ignoreKeydown(relatedEvent))
-        ) {
+        if (!ctx || !ctx.mover || ctx.excludedFromMover || (relatedEvent && ctx.ignoreKeydown(relatedEvent))) {
             return null;
         }
 
@@ -862,6 +857,12 @@ export class MoverAPI implements Types.MoverAPI {
         const isGridLinear = direction === MoverDirections.GridLinear;
         const isGrid = isGridLinear || direction === MoverDirections.Grid;
         const isCyclic = moverProps.cyclic;
+        const isColumnMajor = isGrid && (/* TODO */true);
+
+        const left = !isColumnMajor ? 'left' : 'top';
+        const right = !isColumnMajor ? 'right' : 'bottom';
+        const top = !isColumnMajor ? 'top' : 'left';
+        const bottom = !isColumnMajor ? 'bottom' : 'right';
 
         let next: HTMLElement | null | undefined;
         let scrollIntoViewArg: boolean | undefined;
@@ -872,8 +873,8 @@ export class MoverAPI implements Types.MoverAPI {
 
         if (isGrid) {
             focusedElementRect = fromElement.getBoundingClientRect();
-            focusedElementX1 = Math.ceil(focusedElementRect.left);
-            focusedElementX2 = Math.floor(focusedElementRect.right);
+            focusedElementX1 = Math.ceil(focusedElementRect[left]);
+            focusedElementX2 = Math.floor(focusedElementRect[right]);
         }
 
         if (ctx.rtl) {
@@ -885,8 +886,8 @@ export class MoverAPI implements Types.MoverAPI {
         }
 
         if (
-            (key === MoverKeys.ArrowDown && isVertical) ||
-            (key === MoverKeys.ArrowRight && (isHorizontal || isGrid))
+            (key === MoverKeys.ArrowDown && (isVertical || isColumnMajor)) ||
+            (key === MoverKeys.ArrowRight && (isHorizontal || (isGrid && !isColumnMajor)))
         ) {
             next = focusable.findNext({
                 currentElement: fromElement,
@@ -896,7 +897,7 @@ export class MoverAPI implements Types.MoverAPI {
 
             if (next && isGrid) {
                 const nextElementX1 = Math.ceil(
-                    next.getBoundingClientRect().left
+                    next.getBoundingClientRect()[left]
                 );
 
                 if (!isGridLinear && focusedElementX2 > nextElementX1) {
@@ -909,8 +910,8 @@ export class MoverAPI implements Types.MoverAPI {
                 });
             }
         } else if (
-            (key === MoverKeys.ArrowUp && isVertical) ||
-            (key === MoverKeys.ArrowLeft && (isHorizontal || isGrid))
+            (key === MoverKeys.ArrowUp && (isVertical || isColumnMajor)) ||
+            (key === MoverKeys.ArrowLeft && (isHorizontal || (isGrid && !isColumnMajor)))
         ) {
             next = focusable.findPrev({
                 currentElement: fromElement,
@@ -920,7 +921,7 @@ export class MoverAPI implements Types.MoverAPI {
 
             if (next && isGrid) {
                 const nextElementX2 = Math.floor(
-                    next.getBoundingClientRect().right
+                    next.getBoundingClientRect()[right]
                 );
 
                 if (!isGridLinear && nextElementX2 > focusedElementX1) {
@@ -933,7 +934,7 @@ export class MoverAPI implements Types.MoverAPI {
                 });
             }
         } else if (key === MoverKeys.Home) {
-            if (isGrid) {
+            if (isGrid && !isColumnMajor) {
                 focusable.findElement({
                     container,
                     currentElement: fromElement,
@@ -966,7 +967,7 @@ export class MoverAPI implements Types.MoverAPI {
                 });
             }
         } else if (key === MoverKeys.End) {
-            if (isGrid) {
+            if (isGrid && !isColumnMajor) {
                 focusable.findElement({
                     container,
                     currentElement: fromElement,
@@ -1024,7 +1025,7 @@ export class MoverAPI implements Types.MoverAPI {
             });
 
             // will be on the first column move forward and preserve previous column
-            if (isGrid && next) {
+            if (isGrid && !isColumnMajor && next) {
                 const firstColumnX1 = Math.ceil(
                     next.getBoundingClientRect().left
                 );
@@ -1079,7 +1080,7 @@ export class MoverAPI implements Types.MoverAPI {
             });
 
             // will be on the last column move backwards and preserve previous column
-            if (isGrid && next) {
+            if (isGrid && !isColumnMajor && next) {
                 const lastColumnX1 = Math.ceil(
                     next.getBoundingClientRect().left
                 );
@@ -1109,14 +1110,14 @@ export class MoverAPI implements Types.MoverAPI {
             }
 
             scrollIntoViewArg = true;
-        } else if (isGrid) {
-            const isBackward = key === MoverKeys.ArrowUp;
+        } else if (isGrid) { // Implicitly Up/Down (Left/Right in case of column-major grid)
+            const isBackward = key === MoverKeys.ArrowUp || (isColumnMajor && key === MoverKeys.ArrowLeft);
             const ax1 = focusedElementX1;
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            const ay1 = Math.ceil(focusedElementRect!.top);
+            const ay1 = Math.ceil(focusedElementRect![top]);
             const ax2 = focusedElementX2;
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            const ay2 = Math.floor(focusedElementRect!.bottom);
+            const ay2 = Math.floor(focusedElementRect![bottom]);
             let targetElement: HTMLElement | undefined;
             let lastDistance: number | undefined;
             let lastIntersection = 0;
@@ -1130,10 +1131,10 @@ export class MoverAPI implements Types.MoverAPI {
                     // or the closest one.
                     const rect = el.getBoundingClientRect();
 
-                    const bx1 = Math.ceil(rect.left);
-                    const by1 = Math.ceil(rect.top);
-                    const bx2 = Math.floor(rect.right);
-                    const by2 = Math.floor(rect.bottom);
+                    const bx1 = Math.ceil(rect[left]);
+                    const by1 = Math.ceil(rect[top]);
+                    const bx2 = Math.floor(rect[right]);
+                    const by2 = Math.floor(rect[bottom]);
 
                     if (
                         (isBackward && ay1 < by2) ||
