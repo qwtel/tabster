@@ -1232,9 +1232,9 @@ export class MoverAPI implements Types.MoverAPI {
 
         // Give a chance to other listeners to handle the event (for example,
         // to scroll instead of moving focus).
-        if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) {
-            return;
-        }
+        // if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) {
+        //     return;
+        // }
 
         const key = event.key;
         let moverKey: Types.MoverKey | undefined;
