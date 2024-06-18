@@ -479,9 +479,10 @@ export function getScrollableContainer(
             el = dom.getParentElement(el)
         ) {
             if (
+                el.clientHeight > 0 && ( // Ignore "scroll" containers that are only used for layout purposes.
                 el.scrollWidth > el.clientWidth ||
                 el.scrollHeight > el.clientHeight
-            ) {
+            )) {
                 return el;
             }
         }
