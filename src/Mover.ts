@@ -119,6 +119,8 @@ export class Mover
     private _updateTimer: number | undefined;
 
     visibilityTolerance: number;
+    offsetTop: number;
+    offsetBottom: number;
     dummyManager: MoverDummyManager | undefined;
 
     constructor(
@@ -132,6 +134,8 @@ export class Mover
 
         this._win = tabster.getWindow;
         this.visibilityTolerance = props.visibilityTolerance ?? 0.8;
+        this.offsetTop = props.offsetTop ?? 0;
+        this.offsetBottom = props.offsetBottom ?? 0;
 
         if (this._props.trackState || this._props.visibilityAware) {
             this._intersectionObserver = new IntersectionObserver(
@@ -1013,7 +1017,9 @@ export class MoverAPI implements Types.MoverAPI {
                         isElementVerticallyVisibleInContainer(
                             this._win,
                             el,
-                            mover.visibilityTolerance
+                            mover.visibilityTolerance,
+                            mover.offsetTop,
+                            mover.offsetBottom,
                         )
                     ) {
                         next = el;
@@ -1068,7 +1074,9 @@ export class MoverAPI implements Types.MoverAPI {
                         isElementVerticallyVisibleInContainer(
                             this._win,
                             el,
-                            mover.visibilityTolerance
+                            mover.visibilityTolerance,
+                            mover.offsetTop,
+                            mover.offsetBottom,
                         )
                     ) {
                         next = el;
@@ -1206,7 +1214,7 @@ export class MoverAPI implements Types.MoverAPI {
                     )))
         ) {
             if (scrollIntoViewArg !== undefined) {
-                scrollIntoView(this._win, next, scrollIntoViewArg);
+                scrollIntoView(this._win, next, scrollIntoViewArg, moverProps.offsetTop);
             }
 
             if (relatedEvent) {
@@ -1217,6 +1225,16 @@ export class MoverAPI implements Types.MoverAPI {
             nativeFocus(next);
 
             return next;
+        }
+
+        if (!next && scrollIntoViewArg !== undefined) {
+            if (relatedEvent) {
+                relatedEvent.preventDefault();
+                relatedEvent.stopImmediatePropagation();
+            }
+            scrollIntoView(this._win, fromElement, scrollIntoViewArg, moverProps.offsetTop);
+
+            return fromElement
         }
 
         return null;

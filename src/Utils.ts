@@ -385,7 +385,9 @@ export function getBoundingRect(
 export function isElementVerticallyVisibleInContainer(
     getWindow: GetWindow,
     element: HTMLElement,
-    tolerance: number
+    tolerance: number,
+    offsetTop = 0,
+    offsetBottom = 0,
 ): boolean {
     const container = getScrollableContainer(element);
     if (!container) {
@@ -395,10 +397,10 @@ export function isElementVerticallyVisibleInContainer(
     const containerRect = getBoundingRect(getWindow, container);
     const elementRect = element.getBoundingClientRect();
     const intersectionTolerance = elementRect.height * (1 - tolerance);
-    const topIntersection = Math.max(0, containerRect.top - elementRect.top);
+    const topIntersection = Math.max(0, containerRect.top + offsetTop - elementRect.top);
     const bottomIntersection = Math.max(
         0,
-        elementRect.bottom - containerRect.bottom
+        elementRect.bottom - containerRect.bottom + offsetBottom
     );
     const totalIntersection = topIntersection + bottomIntersection;
 
@@ -449,7 +451,8 @@ export function isElementVisibleInContainer(
 export function scrollIntoView(
     getWindow: GetWindow,
     element: HTMLElement,
-    alignToTop: boolean
+    alignToTop: boolean,
+    offsetTop = 0,
 ): void {
     // Built-in DOM's scrollIntoView() is cool, but when we have nested containers,
     // it scrolls all of them, not just the deepest one. So, trying to work it around.
@@ -460,9 +463,12 @@ export function scrollIntoView(
         const elementRect = element.getBoundingClientRect();
 
         if (alignToTop) {
-            container.scrollTop += elementRect.top - containerRect.top;
+            container.scrollBy({ top: elementRect.top - containerRect.top - offsetTop });
+            // element.scrollIntoView({ block: 'start', inline: 'nearest' })
         } else {
-            container.scrollTop += elementRect.bottom - containerRect.bottom;
+            // HACK: This will absolutely refuse to scroll the container when near the bottom. Only scrollIntoView works...
+            // container.scrollBy({ top: elementRect.bottom - containerRect.bottom }); 
+            element.scrollIntoView({ block: 'end', inline: 'nearest' });
         }
     }
 }

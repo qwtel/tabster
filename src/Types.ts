@@ -717,6 +717,8 @@ export interface MoverProps {
      * @default 0.8
      */
     visibilityTolerance?: number;
+    offsetTop?: number;
+    offsetBottom?: number;
 }
 
 export interface Mover
@@ -728,6 +730,8 @@ export interface Mover
     readonly visibilityTolerance: NonNullable<
         MoverProps["visibilityTolerance"]
     >;
+    readonly offsetTop: NonNullable<MoverProps["offsetTop"]>;
+    readonly offsetBottom: NonNullable<MoverProps["offsetTop"]>;
     dispose(): void;
     setCurrent(element: HTMLElement | undefined): void;
     getCurrent(): HTMLElement | null;
