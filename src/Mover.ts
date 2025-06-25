@@ -682,8 +682,8 @@ function getDistance(
     return xDistance === 0
         ? yDistance
         : yDistance === 0
-        ? xDistance
-        : Math.sqrt(xDistance * xDistance + yDistance * yDistance);
+          ? xDistance
+          : Math.sqrt(xDistance * xDistance + yDistance * yDistance);
 }
 
 export class MoverAPI implements Types.MoverAPI {

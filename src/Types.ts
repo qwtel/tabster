@@ -148,7 +148,8 @@ export interface FocusedElementState
     focus(
         element: HTMLElement,
         noFocusedProgrammaticallyFlag?: boolean,
-        noAccessibleCheck?: boolean
+        noAccessibleCheck?: boolean,
+        preventScroll?: boolean
     ): boolean;
     focusDefault(container: HTMLElement): boolean;
     /** @internal */
@@ -220,9 +221,17 @@ export type ObservedElementAccessibilities =
 export type ObservedElementAccessibility =
     ObservedElementAccessibilities[keyof ObservedElementAccessibilities];
 
+import { ObservedElementRequestStatuses as _ObservedElementRequestStatuses } from "./Consts";
+export type ObservedElementRequestStatuses =
+    typeof _ObservedElementRequestStatuses;
+
+export type ObservedElementRequestStatus =
+    ObservedElementRequestStatuses[keyof ObservedElementRequestStatuses];
+
 export interface ObservedElementAsyncRequest<T> {
     result: Promise<T>;
     cancel(): void;
+    status?: ObservedElementRequestStatus; // Making status optional for the interface backwards compatibility.
 }
 
 interface ObservedElementAPIInternal {
@@ -245,7 +254,8 @@ export interface ObservedElementAPI
     ): ObservedElementAsyncRequest<HTMLElement | null>;
     requestFocus(
         observedName: string,
-        timeout: number
+        timeout: number,
+        options?: Pick<FocusOptions, "preventScroll">
     ): ObservedElementAsyncRequest<boolean>;
 }
 
@@ -758,7 +768,6 @@ export type MoverKeys = typeof _MoverKeys;
 
 export type MoverKey = MoverKeys[keyof MoverKeys];
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface MoverAPI extends MoverAPIInternal, Disposable {
     /** @internal (will likely be exposed once the API is fully stable) */
     moveFocus(fromElement: HTMLElement, key: MoverKey): HTMLElement | null;
@@ -820,7 +829,6 @@ export type GroupperMoveFocusActions = typeof _GroupperMoveFocusActions;
 export type GroupperMoveFocusAction =
     GroupperMoveFocusActions[keyof GroupperMoveFocusActions];
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface GroupperAPI extends GroupperAPIInternal, Disposable {
     /** @internal (will likely be exposed once the API is fully stable) */
     moveFocus(
@@ -1009,6 +1017,17 @@ export interface ModalizerAPI extends ModalizerAPIInternal, Disposable {
         noFocusFirst?: boolean,
         noFocusDefault?: boolean
     ): boolean;
+
+    /**
+     * Just activates the modalizer without focusing on any element. Might be useful,
+     * when the modalizer doesn't have focusable elements yet (but you want it active
+     * already).
+     *
+     * @param modalizerElementOrContainer The element that belongs to a Modalizer or the Modalizer container,
+     * or undefined to activate main app (deactivating any active modalizer).
+     * @returns true if the modalizer was activated.
+     */
+    activate(modalizerElementOrContainer: HTMLElement | undefined): boolean;
 }
 
 interface RestorerAPIInternal {

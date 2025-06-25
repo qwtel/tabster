@@ -272,6 +272,10 @@ export class Modalizer
                     findPropsOut
                 );
 
+                if (next === null) {
+                    next = currentElement;
+                }
+
                 outOfDOMOrder = true;
             } else {
                 outOfDOMOrder = !!findPropsOut.outOfDOMOrder;
@@ -342,6 +346,7 @@ export class ModalizerAPI implements Types.ModalizerAPI {
     private _hiddenUpdateTimer: number | undefined;
     private _alwaysAccessibleSelector: string | undefined;
     private _accessibleCheck: Types.ModalizerElementAccessibleCheck | undefined;
+    private _activationHistory: (string | undefined)[];
 
     activeId: string | undefined;
     currentIsOthersAccessible: boolean | undefined;
@@ -361,6 +366,7 @@ export class ModalizerAPI implements Types.ModalizerAPI {
         this._aug = [];
         this._alwaysAccessibleSelector = alwaysAccessibleSelector;
         this._accessibleCheck = accessibleCheck;
+        this._activationHistory = [];
         this.activeElements = [];
 
         if (!tabster.controlTab) {
@@ -430,12 +436,13 @@ export class ModalizerAPI implements Types.ModalizerAPI {
         }
         part[id] = modalizer;
 
+        const focusedElement =
+            this._tabster.focusedElement.getFocusedElement() ?? null;
+
         // Adding a modalizer which is already focused, activate it
         if (
-            dom.nodeContains(
-                element,
-                this._tabster.focusedElement.getFocusedElement() ?? null
-            )
+            element !== focusedElement &&
+            dom.nodeContains(element, focusedElement)
         ) {
             if (userId !== this.activeId) {
                 this.setActive(modalizer);
@@ -460,8 +467,46 @@ export class ModalizerAPI implements Types.ModalizerAPI {
             if (Object.keys(part).length === 0) {
                 delete this._parts[userId];
 
+                const activationHistory = this._activationHistory;
+                const cleanActivationHistory: (string | undefined)[] = [];
+                let prevHistoryItem: string | undefined;
+
+                // The history order is from most recent to oldest.
+                for (let i = activationHistory.length; i--; ) {
+                    // Remove from activation history, making sure there are no duplicates
+                    // for cases like [modal2, modal1, modal2, modal1]: just removing modal2
+                    // will result in [modal1, modal1] and we want just [modal1]. Otherwise,
+                    // there is a chance for this array to grow forever in a narrow case of
+                    // a modalizer that stays in DOM forever and is being activated/deactivated
+                    // switching between other modalizers that come and go.
+                    const modalizerUserIdFromHistory = activationHistory[i];
+
+                    if (modalizerUserIdFromHistory === userId) {
+                        continue;
+                    }
+
+                    if (modalizerUserIdFromHistory !== prevHistoryItem) {
+                        prevHistoryItem = modalizerUserIdFromHistory;
+
+                        if (
+                            modalizerUserIdFromHistory ||
+                            cleanActivationHistory.length > 0
+                        ) {
+                            cleanActivationHistory.unshift(
+                                modalizerUserIdFromHistory
+                            );
+                        }
+                    }
+                }
+
+                this._activationHistory = cleanActivationHistory;
+
                 if (this.activeId === userId) {
-                    this.setActive(undefined);
+                    const prevActiveId = cleanActivationHistory[0];
+                    const prevActive = prevActiveId
+                        ? Object.values(this._parts[prevActiveId])[0]
+                        : undefined;
+                    this.setActive(prevActive);
                 }
             }
         }
@@ -499,7 +544,7 @@ export class ModalizerAPI implements Types.ModalizerAPI {
 
                                 if (el) {
                                     groupper = getTabsterOnElement(
-                                        this._tabster,
+                                        tabster,
                                         el
                                     )?.groupper;
                                 }
@@ -516,8 +561,8 @@ export class ModalizerAPI implements Types.ModalizerAPI {
                                 a.focusedSince > b.focusedSince
                                     ? -1
                                     : a.focusedSince < b.focusedSince
-                                    ? 1
-                                    : 0
+                                      ? 1
+                                      : 0
                             );
 
                         if (focusedSince.length) {
@@ -586,6 +631,14 @@ export class ModalizerAPI implements Types.ModalizerAPI {
             modalizer?.getProps().isOthersAccessible;
 
         this.hiddenUpdate();
+
+        const activationHistory = this._activationHistory;
+        if (
+            activationHistory[0] !== userId &&
+            (userId !== undefined || activationHistory.length > 0)
+        ) {
+            activationHistory.unshift(userId);
+        }
     }
 
     focus(
@@ -593,10 +646,8 @@ export class ModalizerAPI implements Types.ModalizerAPI {
         noFocusFirst?: boolean,
         noFocusDefault?: boolean
     ): boolean {
-        const ctx = RootAPI.getTabsterContext(
-            this._tabster,
-            elementFromModalizer
-        );
+        const tabster = this._tabster;
+        const ctx = RootAPI.getTabsterContext(tabster, elementFromModalizer);
 
         const modalizer = ctx?.modalizer;
 
@@ -613,8 +664,8 @@ export class ModalizerAPI implements Types.ModalizerAPI {
 
                 if (
                     !noFocusFirst &&
-                    this._tabster.keyboardNavigation.isNavigatingWithKeyboard() &&
-                    this._tabster.focusedElement.focusFirst({
+                    tabster.keyboardNavigation.isNavigatingWithKeyboard() &&
+                    tabster.focusedElement.focusFirst({
                         container: modalizerRoot,
                     })
                 ) {
@@ -627,15 +678,32 @@ export class ModalizerAPI implements Types.ModalizerAPI {
 
                 if (
                     !noFocusDefault &&
-                    this._tabster.focusedElement.focusDefault(modalizerRoot)
+                    tabster.focusedElement.focusDefault(modalizerRoot)
                 ) {
                     return true;
                 }
 
-                this._tabster.focusedElement.resetFocus(modalizerRoot);
+                tabster.focusedElement.resetFocus(modalizerRoot);
             }
         } else if (__DEV__) {
             console.error("Element is not in Modalizer.", elementFromModalizer);
+        }
+
+        return false;
+    }
+
+    activate(modalizerElementOrContainer: HTMLElement | undefined): boolean {
+        const modalizerToActivate: Types.Modalizer | undefined =
+            modalizerElementOrContainer
+                ? RootAPI.getTabsterContext(
+                      this._tabster,
+                      modalizerElementOrContainer
+                  )?.modalizer
+                : undefined;
+
+        if (!modalizerElementOrContainer || modalizerToActivate) {
+            this.setActive(modalizerToActivate);
+            return true;
         }
 
         return false;
@@ -840,9 +908,10 @@ export class ModalizerAPI implements Types.ModalizerAPI {
         focusedElement: HTMLElement | undefined,
         detail: Types.FocusedElementDetail
     ): void => {
+        const tabster = this._tabster;
         const ctx =
             focusedElement &&
-            RootAPI.getTabsterContext(this._tabster, focusedElement);
+            RootAPI.getTabsterContext(tabster, focusedElement);
 
         // Modalizer behaviour is opt in, only apply to elements that have a tabster context
         if (!ctx || !focusedElement) {
@@ -863,18 +932,43 @@ export class ModalizerAPI implements Types.ModalizerAPI {
 
             if (augmentedMap.has(e)) {
                 augmentedMap.delete(e);
-                augmentAttribute(this._tabster, e, _ariaHidden);
+                augmentAttribute(tabster, e, _ariaHidden);
             }
         }
 
-        const modalizer = ctx.modalizer;
+        let modalizer = ctx.modalizer;
+
+        const tabsterOnFocusedElement = getTabsterOnElement(
+            tabster,
+            focusedElement
+        );
+        const modalizerOnFocusedElement = tabsterOnFocusedElement?.modalizer;
+
+        if (modalizerOnFocusedElement) {
+            modalizerOnFocusedElement.focused();
+
+            if (
+                modalizerOnFocusedElement.userId === this.activeId &&
+                tabsterOnFocusedElement.groupper
+            ) {
+                const parentElement = tabster.getParent(focusedElement);
+                const parentModalizer =
+                    parentElement &&
+                    RootAPI.getTabsterContext(tabster, parentElement)
+                        ?.modalizer;
+
+                if (parentModalizer) {
+                    modalizer = parentModalizer;
+                } else {
+                    this.setActive(undefined);
+                    return;
+                }
+            }
+        }
 
         // An inactive groupper with the modalizer on the same node will not give the modalizer
         // in the context, yet we still want to track that the modalizer's container was focused.
-        (
-            modalizer ||
-            getTabsterOnElement(this._tabster, focusedElement)?.modalizer
-        )?.focused();
+        modalizer?.focused();
 
         if (modalizer?.userId === this.activeId) {
             this.currentIsOthersAccessible =
@@ -917,7 +1011,23 @@ export class ModalizerAPI implements Types.ModalizerAPI {
             return;
         }
 
-        const ctx = RootAPI.getTabsterContext(this._tabster, outsideElement);
+        const focusedElement = this._tabster.focusedElement.getFocusedElement();
+        const focusedElementModalizer =
+            focusedElement &&
+            RootAPI.getTabsterContext(this._tabster, focusedElement)?.modalizer;
+
+        if (
+            !focusedElement ||
+            (focusedElement &&
+                focusedElementModalizer?.userId === this.activeId)
+        ) {
+            // If there is no currently focused element, or the currently focused element
+            // is in the active modalizer, we don't need to do anything.
+            return;
+        }
+
+        const tabster = this._tabster;
+        const ctx = RootAPI.getTabsterContext(tabster, outsideElement);
         const modalizer = ctx?.modalizer;
         const activeId = this.activeId;
 
@@ -931,7 +1041,7 @@ export class ModalizerAPI implements Types.ModalizerAPI {
         const container = ctx?.root.getElement();
 
         if (container) {
-            let toFocus = this._tabster.focusable.findFirst({
+            let toFocus = tabster.focusable.findFirst({
                 container,
                 useActiveModalizer: true,
             });
@@ -941,7 +1051,7 @@ export class ModalizerAPI implements Types.ModalizerAPI {
                     outsideElement.compareDocumentPosition(toFocus) &
                     document.DOCUMENT_POSITION_PRECEDING
                 ) {
-                    toFocus = this._tabster.focusable.findLast({
+                    toFocus = tabster.focusable.findLast({
                         container,
                         useActiveModalizer: true,
                     });
@@ -952,7 +1062,7 @@ export class ModalizerAPI implements Types.ModalizerAPI {
                     }
                 }
 
-                this._tabster.focusedElement.focus(toFocus);
+                tabster.focusedElement.focus(toFocus);
 
                 return;
             }

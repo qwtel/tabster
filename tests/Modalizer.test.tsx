@@ -347,6 +347,133 @@ describe("Modalizer", () => {
                 .click("#outside")
                 .activeElement((el) => expect(el?.textContent).toBe("Outside"));
         });
+
+        it("should not restore focus when inactive modalizer is clicked and focus is already returned to the active one which is undefined", async () => {
+            await new BroTest.BroTest(
+                (
+                    <div {...getTabsterAttribute({ root: {} })}>
+                        <button>Button1</button>
+                        <button id="button-2">Button2</button>
+                        <div
+                            {...getTabsterAttribute({
+                                modalizer: {
+                                    id: "modal",
+                                },
+                            })}
+                        >
+                            <button id="modal-button-1">ModalButton1</button>
+                            <button>ModalButton2</button>
+                        </div>
+                        <button id="button-3">Button3</button>
+                    </div>
+                )
+            )
+                .pressTab()
+                .eval(() => {
+                    getTabsterTestVariables()
+                        .dom?.getElementById(document, "modal-button-1")
+                        ?.addEventListener("click", () => {
+                            getTabsterTestVariables()
+                                .dom?.getElementById(document, "button-2")
+                                ?.focus();
+                        });
+                })
+                .activeElement((el) =>
+                    expect(el?.textContent).toEqual("Button1")
+                )
+                .click("#modal-button-1")
+                .wait(300)
+                .activeElement((el) => expect(el?.textContent).toBe("Button2"));
+        });
+
+        it("should not restore focus when inactive modalizer is clicked and focus is already returned to the active one which is another modalizer", async () => {
+            await new BroTest.BroTest(
+                (
+                    <div {...getTabsterAttribute({ root: {} })}>
+                        <button>Button1</button>
+                        <button id="button-2">Button2</button>
+                        <div
+                            {...getTabsterAttribute({
+                                modalizer: {
+                                    id: "modal-1",
+                                },
+                            })}
+                        >
+                            <button id="modal-button-1">ModalButton1</button>
+                            <button>ModalButton2</button>
+                        </div>
+                        <div
+                            {...getTabsterAttribute({
+                                modalizer: {
+                                    id: "modal-2",
+                                },
+                            })}
+                        >
+                            <button id="modal-button-3">ModalButton3</button>
+                            <button id="modal-button-4">ModalButton4</button>
+                            <button id="modal-button-5">ModalButton5</button>
+                        </div>
+                        <button id="button-3">Button3</button>
+                    </div>
+                )
+            )
+                .eval(() => {
+                    getTabsterTestVariables()
+                        .dom?.getElementById(document, "modal-button-1")
+                        ?.addEventListener("click", () => {
+                            getTabsterTestVariables()
+                                .dom?.getElementById(document, "modal-button-4")
+                                ?.focus();
+                        });
+                })
+                .focusElement("#modal-button-5")
+                .wait(300)
+                .activeElement((el) =>
+                    expect(el?.textContent).toEqual("ModalButton5")
+                )
+                .click("#modal-button-1")
+                .wait(300)
+                .activeElement((el) =>
+                    expect(el?.textContent).toBe("ModalButton4")
+                );
+        });
+
+        it("should not restore focus when inactive modalizer is clicked and there is no focused element", async () => {
+            await new BroTest.BroTest(
+                (
+                    <div {...getTabsterAttribute({ root: {} })}>
+                        <button>Button1</button>
+                        <div
+                            {...getTabsterAttribute({
+                                modalizer: {
+                                    id: "modal",
+                                },
+                            })}
+                        >
+                            <button id="modal-button-1">ModalButton1</button>
+                            <button>ModalButton2</button>
+                        </div>
+                        <button>Button2</button>
+                    </div>
+                )
+            )
+                .pressTab()
+                .eval(() => {
+                    getTabsterTestVariables()
+                        .dom?.getElementById(document, "modal-button-1")
+                        ?.addEventListener("click", () => {
+                            (
+                                document.activeElement as HTMLElement | null
+                            )?.blur();
+                        });
+                })
+                .activeElement((el) =>
+                    expect(el?.textContent).toEqual("Button1")
+                )
+                .click("#modal-button-1")
+                .wait(300)
+                .activeElement((el) => expect(el?.textContent).toBeUndefined());
+        });
     });
 
     describe("Others content accessible", () => {
@@ -431,6 +558,31 @@ describe("Modalizer", () => {
                 .activeElement((el) => expect(el?.attributes.id).toBe("baz"))
                 .pressTab()
                 .activeElement((el) => expect(el?.attributes.id).toBe("foo"));
+        });
+
+        it("if trapped, should not escape modalizer if it has no focusables", async () => {
+            await new BroTest.BroTest(
+                (
+                    <div {...getTabsterAttribute({ root: {} })}>
+                        <div
+                            id="modal"
+                            aria-label="modal"
+                            {...getTabsterAttribute({
+                                modalizer: { id: "modal", isTrapped: true },
+                            })}
+                            tabIndex={0}
+                        >
+                            Hello
+                        </div>
+                    </div>
+                )
+            )
+                .focusElement("#modal")
+                .activeElement((el) => expect(el?.textContent).toEqual("Hello"))
+                .pressTab()
+                .activeElement((el) =>
+                    expect(el?.textContent).toEqual("Hello")
+                );
         });
     });
 });
@@ -2702,6 +2854,522 @@ describe("Modalizer with virtual parents provided by getParent()", () => {
             })
             .check((ariaHiddens: [boolean, boolean]) =>
                 expect(ariaHiddens).toEqual([false, false, true])
+            );
+    });
+
+    it("should set aria-hidden on elements which are virtual parents of active modalizer but aren't part of modalizer", async () => {
+        await new BroTest.BroTest(
+            (
+                <div {...getTabsterAttribute({ root: {} })}>
+                    <button id="button-1">Button1</button>
+                    <div id="virtual-parent-container">
+                        <div>
+                            <span
+                                id="virtual-parent"
+                                style={{ visibility: "hidden" }}
+                            />
+                        </div>
+                    </div>
+                    <div id="modal-container-1">
+                        <div
+                            id="modal-1"
+                            aria-label="modal-1"
+                            {...getTabsterAttribute({
+                                modalizer: { id: "modal-1", isTrapped: true },
+                            })}
+                        >
+                            <button id="modal-button-1">ModalButton1</button>
+                        </div>
+                    </div>
+                    <div id="modal-container-2">
+                        <div
+                            id="modal-2"
+                            aria-label="modal-2"
+                            {...getTabsterAttribute({
+                                modalizer: { id: "modal-2", isTrapped: true },
+                            })}
+                        >
+                            <button id="modal-button-2">ModalButton2</button>
+                        </div>
+                    </div>
+                </div>
+            )
+        )
+            .eval(() => {
+                const vars = getTabsterTestVariables();
+
+                function isVirtualElement(
+                    element: Node
+                ): element is NodeWithVirtualParent {
+                    // eslint-disable-next-line no-prototype-builtins
+                    return element && element.hasOwnProperty("_virtual");
+                }
+
+                function getVirtualParent(child: Node): Node | null {
+                    return isVirtualElement(child)
+                        ? child._virtual.parent || null
+                        : null;
+                }
+
+                function setVirtualParent(
+                    child: Node,
+                    parent?: Node | null
+                ): void {
+                    const virtualChild = child;
+
+                    if (
+                        !(virtualChild as unknown as NodeWithVirtualParent)
+                            ._virtual
+                    ) {
+                        (
+                            virtualChild as unknown as NodeWithVirtualParent
+                        )._virtual = {};
+                    }
+
+                    if (parent) {
+                        (
+                            virtualChild as unknown as NodeWithVirtualParent
+                        )._virtual.parent = parent;
+                    } else {
+                        delete (
+                            virtualChild as unknown as NodeWithVirtualParent
+                        )._virtual.parent;
+                    }
+                }
+
+                function getParent(child: Node | null): Node | null {
+                    if (!child) {
+                        return null;
+                    }
+
+                    const virtualParent = getVirtualParent(child);
+
+                    if (virtualParent) {
+                        return virtualParent;
+                    }
+
+                    return (
+                        vars.dom?.getParentElement(child as HTMLElement) || null
+                    );
+                }
+
+                const tabster = vars.createTabster?.(window, {
+                    getParent,
+                });
+
+                tabster && vars.getModalizer?.(tabster);
+
+                const virtualParent = vars.dom?.getElementById(
+                    document,
+                    "virtual-parent"
+                );
+                const modalChild1 = vars.dom?.getElementById(
+                    document,
+                    "modal-1"
+                );
+                const modalChild2 = vars.dom?.getElementById(
+                    document,
+                    "modal-2"
+                );
+
+                modalChild1 && setVirtualParent(modalChild1, virtualParent);
+                modalChild2 && setVirtualParent(modalChild2, virtualParent);
+            })
+            .focusElement("#modal-button-1")
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1")
+            )
+            .wait(500)
+            .eval(() => {
+                const dom = getTabsterTestVariables().dom;
+                return [
+                    dom
+                        ?.getElementById(document, "virtual-parent-container")
+                        ?.hasAttribute("aria-hidden"),
+                    dom
+                        ?.getElementById(document, "modal-container-1")
+                        ?.hasAttribute("aria-hidden"),
+                    dom
+                        ?.getElementById(document, "modal-container-2")
+                        ?.hasAttribute("aria-hidden"),
+                    dom
+                        ?.getElementById(document, "button-1")
+                        ?.hasAttribute("aria-hidden"),
+                ];
+            })
+            .check(
+                ([
+                    virtualParentContainer,
+                    modalContainer1,
+                    modalContainer2,
+                    button1,
+                ]: [boolean, boolean, boolean, boolean]) => {
+                    expect(virtualParentContainer).toBe(true);
+                    expect(modalContainer1).toBe(false);
+                    expect(modalContainer2).toBe(true);
+                    expect(button1).toBe(true);
+                }
+            )
+            .focusElement("#modal-button-2")
+            .eval(() => {
+                const dom = getTabsterTestVariables().dom;
+                return [
+                    dom
+                        ?.getElementById(document, "virtual-parent-container")
+                        ?.hasAttribute("aria-hidden"),
+                    dom
+                        ?.getElementById(document, "modal-container-1")
+                        ?.hasAttribute("aria-hidden"),
+                    dom
+                        ?.getElementById(document, "modal-container-2")
+                        ?.hasAttribute("aria-hidden"),
+                    dom
+                        ?.getElementById(document, "button-1")
+                        ?.hasAttribute("aria-hidden"),
+                ];
+            })
+            .check(
+                ([
+                    virtualParentContainer,
+                    modalContainer1,
+                    modalContainer2,
+                    button1,
+                ]: [boolean, boolean, boolean, boolean]) => {
+                    expect(virtualParentContainer).toBe(true);
+                    expect(modalContainer1).toBe(false);
+                    expect(modalContainer2).toBe(false);
+                    expect(button1).toBe(true);
+                }
+            )
+            .wait(500)
+            .eval(() => {
+                const dom = getTabsterTestVariables().dom;
+                return [
+                    dom
+                        ?.getElementById(document, "virtual-parent-container")
+                        ?.hasAttribute("aria-hidden"),
+                    dom
+                        ?.getElementById(document, "modal-container-1")
+                        ?.hasAttribute("aria-hidden"),
+                    dom
+                        ?.getElementById(document, "modal-container-2")
+                        ?.hasAttribute("aria-hidden"),
+                    dom
+                        ?.getElementById(document, "button-1")
+                        ?.hasAttribute("aria-hidden"),
+                ];
+            })
+            .check(
+                ([
+                    virtualParentContainer,
+                    modalContainer1,
+                    modalContainer2,
+                    button1,
+                ]: [boolean, boolean, boolean, boolean]) => {
+                    expect(virtualParentContainer).toBe(true);
+                    expect(modalContainer1).toBe(true);
+                    expect(modalContainer2).toBe(false);
+                    expect(button1).toBe(true);
+                }
+            );
+    });
+});
+
+describe("Modalizer activation on creation", () => {
+    beforeEach(async () => {
+        await BroTest.bootstrapTabsterPage({ modalizer: true, groupper: true });
+    });
+
+    it("should activate newly created modalizer if focus is inside the modalizer container", async () => {
+        await new BroTest.BroTest(
+            (
+                <div {...getTabsterAttribute({ root: {} })}>
+                    <button id="button-1">Button1</button>
+                    <div id="modal" aria-label="modal">
+                        <button id="modal-button">ModalButton1</button>
+                        <button id="modal-button-2">ModalButton2</button>
+                    </div>
+                    <button>Button2</button>
+                </div>
+            )
+        )
+            .focusElement("#modal-button-2")
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton2")
+            )
+            .pressTab()
+            .activeElement((el) => expect(el?.textContent).toEqual("Button2"))
+            .pressTab(true)
+            .pressTab(true)
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1")
+            )
+            .eval(() => {
+                const vars = getTabsterTestVariables();
+
+                if (vars.dom && vars.getTabsterAttribute) {
+                    vars.dom
+                        .getElementById(document, "modal")
+                        ?.setAttribute(
+                            "data-tabster",
+                            vars.getTabsterAttribute(
+                                { modalizer: { id: "modal", isTrapped: true } },
+                                true
+                            )
+                        );
+                }
+            })
+            .pressTab(true)
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton2")
+            )
+            .pressTab()
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1")
+            );
+    });
+
+    it("should not activate newly created modalizer if focus is outside the modalizer container", async () => {
+        await new BroTest.BroTest(
+            (
+                <div {...getTabsterAttribute({ root: {} })}>
+                    <button id="button-1">Button1</button>
+                    <div id="modal" aria-label="modal">
+                        <button id="modal-button">ModalButton1</button>
+                        <button id="modal-button-2">ModalButton2</button>
+                    </div>
+                    <button>Button2</button>
+                </div>
+            )
+        )
+            .focusElement("#modal-button-2")
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton2")
+            )
+            .pressTab()
+            .activeElement((el) => expect(el?.textContent).toEqual("Button2"))
+            .eval(() => {
+                const vars = getTabsterTestVariables();
+
+                if (vars.dom && vars.getTabsterAttribute) {
+                    vars.dom
+                        .getElementById(document, "modal")
+                        ?.setAttribute(
+                            "data-tabster",
+                            vars.getTabsterAttribute(
+                                { modalizer: { id: "modal", isTrapped: true } },
+                                true
+                            )
+                        );
+                }
+            })
+            .activeElement((el) => expect(el?.textContent).toEqual("Button2"))
+            .pressTab(true)
+            .activeElement((el) => expect(el?.textContent).toEqual("Button1"));
+    });
+
+    it("should not activate newly created modalizer if focus is on the modalizer container", async () => {
+        await new BroTest.BroTest(
+            (
+                <div {...getTabsterAttribute({ root: {} })}>
+                    <button id="button-1">Button1</button>
+                    <div id="modal" aria-label="modal" tabIndex={0}>
+                        <button id="modal-button">ModalButton1</button>
+                        <button id="modal-button-2">ModalButton2</button>
+                    </div>
+                    <button>Button2</button>
+                </div>
+            )
+        )
+            .focusElement("#modal")
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1ModalButton2")
+            )
+            .pressTab()
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1")
+            )
+            .pressTab(true)
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1ModalButton2")
+            )
+            .eval(() => {
+                const vars = getTabsterTestVariables();
+
+                if (vars.dom && vars.getTabsterAttribute) {
+                    vars.dom.getElementById(document, "modal")?.setAttribute(
+                        "data-tabster",
+                        vars.getTabsterAttribute(
+                            {
+                                modalizer: { id: "modal", isTrapped: true },
+                                groupper: { tabbability: 2 },
+                            },
+                            true
+                        )
+                    );
+                }
+            })
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1ModalButton2")
+            )
+            .pressTab()
+            .activeElement((el) => expect(el?.textContent).toEqual("Button2"))
+            .pressTab(true)
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1ModalButton2")
+            )
+            .pressTab(true)
+            .activeElement((el) => expect(el?.textContent).toEqual("Button1"));
+    });
+});
+
+describe("Modalizer activation", () => {
+    beforeEach(async () => {
+        await BroTest.bootstrapTabsterPage({ modalizer: true });
+    });
+
+    it("should activate most recently active modalizer when currently active one disappears", async () => {
+        await new BroTest.BroTest(
+            (
+                <div {...getTabsterAttribute({ root: {} })}>
+                    <button id="button-1">Button1</button>
+                    <div
+                        id="modal-1"
+                        aria-label="modal"
+                        {...getTabsterAttribute({
+                            modalizer: { id: "modal-1", isTrapped: true },
+                        })}
+                    >
+                        <button id="modal-button-1">ModalButton1</button>
+                    </div>
+                    <button>Button2</button>
+                    <div
+                        id="modal-2"
+                        aria-label="modal"
+                        {...getTabsterAttribute({
+                            modalizer: { id: "modal-2", isTrapped: true },
+                        })}
+                    >
+                        <button id="modal-button-2">ModalButton2</button>
+                    </div>
+                    <button>Button3</button>
+                    <div
+                        id="modal-3"
+                        aria-label="modal"
+                        {...getTabsterAttribute({
+                            modalizer: { id: "modal-3", isTrapped: true },
+                        })}
+                    >
+                        <button id="modal-button-3">ModalButton3</button>
+                    </div>
+                    <button>Button4</button>
+                </div>
+            )
+        )
+            .focusElement("#modal-button-1")
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1")
+            )
+            .focusElement("#modal-button-3")
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton3")
+            )
+            .focusElement("#modal-button-2")
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton2")
+            )
+            .removeElement("#modal-2")
+            .activeElement((el) => expect(el?.textContent).toBeUndefined())
+            .pressTab()
+            .wait(300) // Give Modalizer time to restore focus to active modalizer.
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton3")
+            )
+            .removeElement("#modal-3")
+            .activeElement((el) => expect(el?.textContent).toBeUndefined())
+            .pressTab()
+            .wait(300) // Give Modalizer time to restore focus to active modalizer.
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1")
+            );
+    });
+
+    it("should activate modalizer by element from modalizer or modalizer container", async () => {
+        await new BroTest.BroTest(
+            (
+                <div {...getTabsterAttribute({ root: {} })}>
+                    <button id="button-1">Button1</button>
+                    <div
+                        id="modal-1"
+                        aria-label="modal"
+                        {...getTabsterAttribute({
+                            modalizer: { id: "modal-1", isTrapped: true },
+                        })}
+                    >
+                        <button id="modal-button-1">ModalButton1</button>
+                    </div>
+                    <button>Button2</button>
+                </div>
+            )
+        )
+            .focusElement("#button-1")
+            .activeElement((el) => expect(el?.textContent).toEqual("Button1"))
+            .eval(() => {
+                const tabsterTestVariables = getTabsterTestVariables();
+                const element = tabsterTestVariables.dom?.getElementById(
+                    document,
+                    "modal-button-1"
+                );
+
+                if (element) {
+                    // Activate by element from modalizer.
+                    return [tabsterTestVariables.modalizer?.activate(element)];
+                }
+
+                return [];
+            })
+            .check((result: boolean[]) => {
+                expect(result).toEqual([true]);
+            })
+            .pressTab()
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1")
+            )
+            .pressTab()
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1")
+            )
+            .eval(() => {
+                return [
+                    // Deactivate modalizer.
+                    getTabsterTestVariables().modalizer?.activate(undefined),
+                ];
+            })
+            .check((result: boolean[]) => {
+                expect(result).toEqual([true]);
+            })
+            .pressTab()
+            .activeElement((el) => expect(el?.textContent).toEqual("Button2"))
+            .eval(() => {
+                const tabsterTestVariables = getTabsterTestVariables();
+                const element = tabsterTestVariables.dom?.getElementById(
+                    document,
+                    "modal-1"
+                );
+
+                if (element) {
+                    // Activate by modalizer container.
+                    return [tabsterTestVariables.modalizer?.activate(element)];
+                }
+
+                return [];
+            })
+            .check((result: boolean[]) => {
+                expect(result).toEqual([true]);
+            })
+            .pressTab(true)
+            .activeElement((el) =>
+                expect(el?.textContent).toEqual("ModalButton1")
             );
     });
 });

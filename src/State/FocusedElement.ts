@@ -180,7 +180,8 @@ export class FocusedElementState
     focus(
         element: HTMLElement,
         noFocusedProgrammaticallyFlag?: boolean,
-        noAccessibleCheck?: boolean
+        noAccessibleCheck?: boolean,
+        preventScroll?: boolean
     ): boolean {
         if (
             !this._tabster.focusable.isFocusable(
@@ -193,7 +194,7 @@ export class FocusedElementState
             return false;
         }
 
-        element.focus();
+        element.focus({ preventScroll });
 
         return true;
     }
@@ -634,7 +635,12 @@ export class FocusedElementState
                 return;
             }
 
-            if (nextUncontrolled || nextElement.tagName === "IFRAME") {
+            if (
+                (nextUncontrolled &&
+                    tabster.focusable.isVisible(nextUncontrolled)) ||
+                (nextElement.tagName === "IFRAME" &&
+                    tabster.focusable.isVisible(nextElement))
+            ) {
                 // For iframes and uncontrolled areas we always want to use default action to
                 // move focus into.
                 if (
@@ -648,7 +654,7 @@ export class FocusedElementState
                     )
                 ) {
                     DummyInputManager.moveWithPhantomDummy(
-                        this._tabster,
+                        tabster,
                         nextUncontrolled ?? nextElement,
                         false,
                         isBackward,
