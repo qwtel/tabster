@@ -16,7 +16,6 @@
         "forceConsistentCasingInFileNames": true,
         "lib": ["DOM", "ESNext"],
         "esModuleInterop": true,
-        "baseUrl": ".",
         "paths": {
             "tabster": ["./src/"]
         }
