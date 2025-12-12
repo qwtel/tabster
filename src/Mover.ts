@@ -120,8 +120,6 @@ export class Mover
     private _updateTimer: number | undefined;
 
     visibilityTolerance: number;
-    offsetTop: number;
-    offsetBottom: number;
     dummyManager: MoverDummyManager | undefined;
 
     constructor(
@@ -135,8 +133,6 @@ export class Mover
 
         this._win = tabster.getWindow;
         this.visibilityTolerance = props.visibilityTolerance ?? 0.8;
-        this.offsetTop = props.offsetTop ?? 0;
-        this.offsetBottom = props.offsetBottom ?? 0;
 
         if (this._props.trackState || this._props.visibilityAware) {
             this._intersectionObserver = new IntersectionObserver(
@@ -817,7 +813,12 @@ export class MoverAPI implements Types.MoverAPI {
             checkRtl: true,
         });
 
-        if (!ctx || !ctx.mover || ctx.excludedFromMover || (relatedEvent && ctx.ignoreKeydown(relatedEvent))) {
+        if (
+            !ctx ||
+            !ctx.mover ||
+            ctx.excludedFromMover ||
+            (relatedEvent && ctx.ignoreKeydown(relatedEvent))
+        ) {
             return null;
         }
 
@@ -1018,9 +1019,7 @@ export class MoverAPI implements Types.MoverAPI {
                         isElementVerticallyVisibleInContainer(
                             this._win,
                             el,
-                            mover.visibilityTolerance,
-                            mover.offsetTop,
-                            mover.offsetBottom,
+                            mover.visibilityTolerance
                         )
                     ) {
                         next = el;
@@ -1075,9 +1074,7 @@ export class MoverAPI implements Types.MoverAPI {
                         isElementVerticallyVisibleInContainer(
                             this._win,
                             el,
-                            mover.visibilityTolerance,
-                            mover.offsetTop,
-                            mover.offsetBottom,
+                            mover.visibilityTolerance
                         )
                     ) {
                         next = el;
@@ -1215,7 +1212,7 @@ export class MoverAPI implements Types.MoverAPI {
                     )))
         ) {
             if (scrollIntoViewArg !== undefined) {
-                scrollIntoView(this._win, next, scrollIntoViewArg, moverProps.offsetTop);
+                scrollIntoView(this._win, next, scrollIntoViewArg);
             }
 
             if (relatedEvent) {
@@ -1233,7 +1230,7 @@ export class MoverAPI implements Types.MoverAPI {
                 relatedEvent.preventDefault();
                 relatedEvent.stopImmediatePropagation();
             }
-            scrollIntoView(this._win, fromElement, scrollIntoViewArg, moverProps.offsetTop);
+            scrollIntoView(this._win, fromElement, scrollIntoViewArg);
 
             return fromElement
         }
